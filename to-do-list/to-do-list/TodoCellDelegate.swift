@@ -11,4 +11,5 @@ import UIKit
 protocol TodoCellDelegate {
     func didRequestDelete(_ cell: ToDoTableViewCell)
     func didRequestComplete(_ cell: ToDoTableViewCell)
+    func didRequestShare(_ cell: ToDoTableViewCell)
 }

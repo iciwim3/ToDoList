@@ -37,4 +37,11 @@ class ToDoTableViewCell: UITableViewCell {
         }
     }
     
+    @IBAction func shareToDo(_ sender: Any) {
+        if let delegateObject = self.delegate {
+            delegateObject.didRequestShare(self)
+        }
+    }
+    
+    
 }
