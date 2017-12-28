@@ -12,7 +12,7 @@ class ToDoTableViewCell: UITableViewCell {
     
     @IBOutlet weak var toDoLabel: UILabel!
     
-    var delegate: TodoCellDelegate?
+    // var delegate: TodoCellDelegate?
 
     override func awakeFromNib() {
         super.awakeFromNib()
@@ -22,9 +22,10 @@ class ToDoTableViewCell: UITableViewCell {
     override func setSelected(_ selected: Bool, animated: Bool) {
         super.setSelected(selected, animated: animated)
 
-        // Configure the view for the selected state
+        self.contentView.backgroundColor = UIColor.white
     }
     
+    /*
     @IBAction func completeToDo(_ sender: Any) {
         if let delegateObject = self.delegate {
             delegateObject.didRequestComplete(self)
@@ -42,6 +43,6 @@ class ToDoTableViewCell: UITableViewCell {
             delegateObject.didRequestShare(self)
         }
     }
-    
+    */
     
 }

@@ -9,13 +9,29 @@
 import UIKit
 import MultipeerConnectivity
 
-class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, MCBrowserViewControllerDelegate {
+class ToDoTableVC: UITableViewController, MCSessionDelegate, MCBrowserViewControllerDelegate {
     
-    var todoItems: [ToDoItem]!
+    var todoItems: [ToDoItem]! {
+        didSet {
+            progressBar.setProgress(progress, animated: true)
+        }
+    }
     
     var peerID: MCPeerID!
     var mcSession: MCSession!
     var mcAdvertiserAssistant: MCAdvertiserAssistant!
+    
+    @IBOutlet weak var progressBar: UIProgressView!
+    
+    var progress: Float {
+        if todoItems.count > 0 {
+            return Float(todoItems.filter({$0.completed}).count) / Float(todoItems.count)
+        } else {
+            return 0
+        }
+    }
+    
+    var connectionButtonReference: UIButton!
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -30,7 +46,7 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
         mcSession.delegate = self
     }
 
-    @IBAction func addNewToDo(_ sender: Any) {
+    func addNewToDo() {
         let addAlert = UIAlertController(title: "New ToDo", message: "Enter a Title", preferredStyle: .alert)
         addAlert.addTextField { (textfield: UITextField) in
             textfield.placeholder = "ToDo Item Title"
@@ -58,14 +74,26 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
         
     }
     
-    func didRequestComplete(_ cell: ToDoTableViewCell) {
-        if let indexPath = tableView.indexPath(for: cell) {
-            var todoItem = todoItems[indexPath.row]
-            todoItem.markAsCompleted()
+    func completeTodoItem(_ indexPath: IndexPath) {
+        var todoItem = todoItems[indexPath.row]
+        todoItem.markAsCompleted()
+        todoItems[indexPath.row] = todoItem
+        
+        if let cell = tableView.cellForRow(at: indexPath) as? ToDoTableViewCell {
             cell.toDoLabel.attributedText = strikeThroughText(todoItem.title)
+            
+            UIView.animate(withDuration: 0.1, animations: {
+                cell.transform = cell.transform.scaledBy(x: 1.5, y: 1.5)
+            }, completion: { (success) in
+                UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 0.7, initialSpringVelocity: 0.5, options: .curveEaseOut, animations: {
+                    cell.transform = CGAffineTransform.identity
+                }, completion: nil)
+            })
         }
+        
     }
-    @IBAction func showConnectivityButtonTapped(_ sender: Any) {
+    
+    func showConnectivityButtonTapped() {
         let actionSheet = UIAlertController(title: "ToDo Exchange", message: "Do you want to Host or Join a session?", preferredStyle: .actionSheet)
         actionSheet.addAction(UIAlertAction(title: "Host Session", style: .default, handler: { (action: UIAlertAction) in
             self.mcAdvertiserAssistant = MCAdvertiserAssistant(serviceType: "ske-td", discoveryInfo: nil, session: self.mcSession)
@@ -93,6 +121,7 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
         return attributeString
     }
     
+    /*
     func didRequestDelete(_ cell: ToDoTableViewCell) {
         if let indexPath = tableView.indexPath(for: cell) {
             todoItems[indexPath.row].deleteItem()
@@ -100,7 +129,7 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
             tableView.deleteRows(at: [indexPath], with: .automatic)
         }
     }
-    
+ 
     func didRequestShare(_ cell: ToDoTableViewCell) {
         if let indexPath = tableView.indexPath(for: cell) {
             let todoItem = todoItems[indexPath.row]
@@ -108,6 +137,7 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
             sendTodo(todoItem)
         }
     }
+    */
     
     func sendTodo(_ todoItem: ToDoItem) {
         if mcSession.connectedPeers.count > 0 {
@@ -119,7 +149,7 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
                 }
             }
         } else {
-            print("You are not connected to other devices")
+            showConnectivityButtonTapped()
         }
     }
     
@@ -129,6 +159,8 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
             $0.createdAt < $1.createdAt
         })
         tableView.reloadData()
+        
+        progressBar.setProgress(progress, animated: true)
     }
 
     // MARK: - Table view data source
@@ -144,7 +176,6 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         
         let cell = tableView.dequeueReusableCell(withIdentifier: "Cell", for: indexPath) as! ToDoTableViewCell
-        cell.delegate = self
         
         let todoItem = todoItems[indexPath.row]
         
@@ -157,18 +188,46 @@ class ToDoTableVC: UITableViewController, TodoCellDelegate, MCSessionDelegate, M
         return cell
     }
     
+    override func tableView(_ tableView: UITableView, editActionsForRowAt indexPath: IndexPath) -> [UITableViewRowAction]? {
+        
+        let shareAction = UITableViewRowAction(style: .normal, title: "Share") { (action: UITableViewRowAction, indexPath: IndexPath) in
+            let todoItem = self.todoItems[indexPath.row]
+            self.sendTodo(todoItem)
+        }
+        shareAction.backgroundColor = UIColor(named: "mainBlueColor")
+        
+        let deleteAction = UITableViewRowAction(style: .normal, title: "Delete") { (action: UITableViewRowAction, indexPath: IndexPath) in
+            self.todoItems[indexPath.row].deleteItem()
+            self.todoItems.remove(at: indexPath.row)
+            self.tableView.deleteRows(at: [indexPath], with: .automatic)
+        }
+        deleteAction.backgroundColor = UIColor(named: "mainYellowColor")
+        
+        return [deleteAction, shareAction]
+    }
+    
+    override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        completeTodoItem(indexPath)
+    }
+    
     // MARK: Multipeer Connectivity Delegate Functions
     
     func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         switch state {
         case MCSessionState.connected:
-            print("Connected: \(peerID.displayName)")
+            DispatchQueue.main.sync {
+                self.connectionButtonReference.setTitle("Connected", for: .normal)
+            }
             
         case MCSessionState.connecting:
-            print("Connected: \(peerID.displayName)")
+            DispatchQueue.main.sync {
+                self.connectionButtonReference.setTitle("Connecting", for: .normal)
+            }
             
         case MCSessionState.notConnected:
-            print("Connected: \(peerID.displayName)")
+            DispatchQueue.main.sync {
+                self.connectionButtonReference.setTitle("Offline", for: .normal)
+            }
         }
     }
     
